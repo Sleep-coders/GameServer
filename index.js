@@ -2,6 +2,7 @@ const http = require("http");
 const webSocketServer = require("websocket").server;
 const httpServer = http.createServer();
 const clients = {};
+const games = {};
 
 httpServer.listen(8080, () => {
   console.log("im listening on 8080");
@@ -12,28 +13,131 @@ const wsServer = new webSocketServer({
 });
 
 wsServer.on("request", (request) => {
-  const connection = request.accept(null, "*");
-  console.log(request);
-  connection.on("open", () => console.log("opened"));
-  connection.on("close", () => console.log("close"));
-  connection.on("message", () => (message) => {
-    const result = JSON.parse(message);
-    console.log(result);
-  });
+  const connection = request.accept(null, request.origin);
 
+  // Connecting to the server
   const clientId = guid();
 
   clients[clientId] = {
     connection: connection,
-    NickName: "osaid",
   };
-
   const payLoad = {
     method: "connect",
     clientId: clientId,
   };
-
   connection.send(JSON.stringify(payLoad));
+
+  /////////////////////////////////////////////////
+  // MESSAGES CLIENT REQUESTS
+  connection.on("message", (message) => {
+    const result = JSON.parse(message.utf8Data);
+    console.log(result);
+
+
+    // Creating a game
+    if (result.method === "create") {
+      const clientID = result.clientId;
+      const clientEmail = result.clientEmail;
+      const clientName = result.clientName;
+      const gamePassword = result.gamePassword;
+      const playersNumber = result.playersNumber;
+      const gameID = guid();
+      
+      games[gameID] = {
+        gameID: gameID,
+        playersNumber: playersNumber,
+        hostID: clientID,
+        hostName : clientName,
+        gamePassword: gamePassword,
+        roomMessages: [],
+        players: [],
+      };
+
+      const payLoad = {
+        method: "create",
+        game: games[gameID],
+      };
+
+      clients[clientID].connection.send(JSON.stringify(payLoad));
+    }
+
+    // Verify The Game ID
+    if (result.method === "verify") {
+      const clientID = result.clientId;
+      const gameID = result.gameId;
+      const payLoad = {
+        method: "verify",
+        check: null,
+      };
+
+      if (games[gameID] != null) {
+        payLoad.check = true;
+      } else {
+        payLoad.check = false;
+      }
+      clients[clientID] = connection.send(JSON.stringify(payLoad));
+    }
+
+    // Verify Password & Joining a game
+    if (result.method === "join") {
+      const clientID = result.clientId;
+      const gameID = result.gameId;
+      const gamePassword = result.gamePassword;
+      
+      if (gamePassword != game.gamePassword) {
+        const payLoad = {
+          method: "join",
+          passCheck: false,
+        };
+        clients[clientID].connection.send(JSON.stringify(payLoad));
+      } else {
+        const game = games[gameID];
+        if (game.players.length <= games.playersNumber) {
+
+          const player = {
+            playerID : clientID,
+            playerPoints : 0,
+          }
+          
+          game.players.push(player);
+
+          const payLoad = {
+            method: "join",
+            passCheck: true,
+            game: game,
+          };
+          clients[clientID].connection.send(JSON.stringify(payLoad));
+          
+        } else {
+          const payLoad = {
+            method: "join",
+            game: games[gameID],
+          };
+          clients[clientID].connection.send(JSON.stringify(payLoad));
+        }
+      }
+    }
+
+    //Start game for all players
+    if(result.method === "startGame"){
+      const gameID = result.gameId;
+      const hostID = games[gameID].hostID;
+      const players = games[gameID].players;
+
+      const payLoad = {
+        method : "startGame",
+      }
+
+      clients[hostID].connection.send(JSON.stringify(payLoad));
+      players.forEach(player =>clients[player].connection.send(JSON.stringify(payLoad)));
+    }
+  });
+
+
+
+  /////////////////////////////////////////////////
+  // Closing Connection to the server
+  connection.on("close", () => console.log("close"));
 });
 
 /////////////////////////////////////////////////////
