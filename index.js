@@ -33,7 +33,6 @@ wsServer.on("request", (request) => {
     const result = JSON.parse(message.utf8Data);
     console.log(result);
 
-
     // Creating a game
     if (result.method === "create") {
       const clientID = result.clientId;
@@ -42,15 +41,16 @@ wsServer.on("request", (request) => {
       const gamePassword = result.gamePassword;
       const playersNumber = result.playersNumber;
       const gameID = guid();
-      
+
       games[gameID] = {
         gameID: gameID,
         playersNumber: playersNumber,
         hostID: clientID,
-        hostName : clientName,
+        hostName: clientName,
         gamePassword: gamePassword,
         roomMessages: [],
         players: [],
+        gameStarted: false,
       };
 
       const payLoad = {
@@ -81,9 +81,10 @@ wsServer.on("request", (request) => {
     // Verify Password & Joining a game
     if (result.method === "join") {
       const clientID = result.clientId;
+      const clientName = result.clientName;
       const gameID = result.gameId;
       const gamePassword = result.gamePassword;
-      
+
       if (gamePassword != game.gamePassword) {
         const payLoad = {
           method: "join",
@@ -92,13 +93,16 @@ wsServer.on("request", (request) => {
         clients[clientID].connection.send(JSON.stringify(payLoad));
       } else {
         const game = games[gameID];
-        if (game.players.length <= games.playersNumber) {
-
+        if (
+          game.players.length <= games.playersNumber &&
+          game.gameStarted == false
+        ) {
           const player = {
-            playerID : clientID,
-            playerPoints : 0,
-          }
-          
+            playerID: clientID,
+            clientName: clientName,
+            playerPoints: 0,
+          };
+
           game.players.push(player);
 
           const payLoad = {
@@ -107,7 +111,6 @@ wsServer.on("request", (request) => {
             game: game,
           };
           clients[clientID].connection.send(JSON.stringify(payLoad));
-          
         } else {
           const payLoad = {
             method: "join",
@@ -119,21 +122,48 @@ wsServer.on("request", (request) => {
     }
 
     //Start game for all players
-    if(result.method === "startGame"){
+    if (result.method === "startGameForAll") {
       const gameID = result.gameId;
-      const hostID = games[gameID].hostID;
-      const players = games[gameID].players;
+      const game = games[gameID];
+      const hostID = game.hostID;
+      const players = game.players;
+      game.gameStarted = true;
+
+      const alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const random = Math.floor(Math.random() * (alphabets.length - 1));
+      const randomChar = alphabets[random];
 
       const payLoad = {
-        method : "startGame",
-      }
+        method: "startGameForAll",
+        hostID: hostID,
+        randomChar: randomChar,
+      };
 
       clients[hostID].connection.send(JSON.stringify(payLoad));
-      players.forEach(player =>clients[player].connection.send(JSON.stringify(payLoad)));
+      players.forEach((player) =>
+        clients[player].connection.send(JSON.stringify(payLoad))
+      );
+    }
+
+    //End game for all players
+
+    if (result.method === "endGameForAll") {
+      const gameID = result.gameId;
+      const game = games[gameID];
+      const hostID = game.hostID;
+      const players = game.players;
+      game.gameStarted = false;
+
+      const payLoad = {
+        method: "endGameForAll",
+      };
+
+      clients[hostID].connection.send(JSON.stringify(payLoad));
+      players.forEach((player) =>
+        clients[player].connection.send(JSON.stringify(payLoad))
+      );
     }
   });
-
-
 
   /////////////////////////////////////////////////
   // Closing Connection to the server
