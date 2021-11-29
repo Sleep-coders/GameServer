@@ -53,6 +53,14 @@ wsServer.on("request", (request) => {
         gameStarted: false,
       };
 
+      const player = {
+        playerID: clientID,
+        clientName: clientName,
+        playerPoints: 0,
+        answers: {},
+      };
+      games[gameID].players.push(player);
+
       const payLoad = {
         method: "create",
         game: games[gameID],
@@ -101,6 +109,13 @@ wsServer.on("request", (request) => {
             playerID: clientID,
             clientName: clientName,
             playerPoints: 0,
+            answers: {
+              human: null,
+              plant: null,
+              animal: null,
+              country: null,
+              thing: null,
+            },
           };
 
           game.players.push(player);
@@ -139,10 +154,59 @@ wsServer.on("request", (request) => {
         randomChar: randomChar,
       };
 
-      clients[hostID].connection.send(JSON.stringify(payLoad));
       players.forEach((player) =>
-        clients[player].connection.send(JSON.stringify(payLoad))
+        clients[player.playerID].connection.send(JSON.stringify(payLoad))
       );
+    }
+
+    // game logic processing
+    if (result.method == "sendGameLogicToServer") {
+      const { human, animal, plant, country, thing, gameID, clientID } = result;
+      const game = games[gameID];
+
+      game.players.forEach((player) => {
+        if (player.playerID == clientID) {
+          player.answers = {
+            human: human,
+            plant: plant,
+            animal: animal,
+            country: country,
+            thing: thing,
+          };
+        }
+      });
+
+      const payLoad = {
+        method: "sendGameLogicToServer",
+        game: game,
+      };
+      game.players.forEach((player) => {
+        clients[player.playerID].connection.send(JSON.stringify(payLoad));
+      });
+    }
+
+    //Adding Point to the user
+    if (result.method == "addPointsToTheUsers") {
+      const gameID = result.gameID;
+      const game = games[gameID];
+      const playersGrade = result.gradingResults;
+
+      game.players.forEach((player) => {
+        playersGrade.forEach((winingPlayer) => {
+          if (player.playerID == winingPlayer.clientID) {
+            player.playerPoints += winingPlayer.points;
+          }
+        });
+      });
+
+      const payLoad = {
+        method: "addPointsToTheUsers",
+        game: game,
+      };
+
+      game.players.forEach((player) => {
+        clients[player.playerID].connection.send(JSON.stringify(payLoad));
+      });
     }
 
     //End game for all players
@@ -167,7 +231,7 @@ wsServer.on("request", (request) => {
 
   /////////////////////////////////////////////////
   // Closing Connection to the server
-  connection.on("close", () => console.log("close"));
+  connection.on("close", () => console.log("connection closed"));
 });
 
 /////////////////////////////////////////////////////
