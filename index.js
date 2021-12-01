@@ -156,7 +156,7 @@ wsServer.on("request", async (request) => {
       const players = game.players;
       game.gameStarted = true;
 
-      const alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const alphabets = "ETAIONSHR";
       const random = Math.floor(Math.random() * (alphabets.length - 1));
       const randomChar = alphabets[random];
 
