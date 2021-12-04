@@ -4,9 +4,10 @@ const httpServer = http.createServer();
 const clients = {};
 const games = {};
 let counter = 0;
+const port = process.env.PORT || 8080;
 
-httpServer.listen(8080, () => {
-  console.log("im listening on 8080");
+httpServer.listen(port, () => {
+  console.log("im listening on port " + port);
 });
 
 const wsServer = new webSocketServer({
